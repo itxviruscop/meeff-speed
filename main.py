@@ -15,6 +15,8 @@ from unsubscribe import unsubscribe_everyone
 from filters import filter_command, set_filter
 from aio import aio_markup, aio_callback_handler, run_requests, aio_markup_processing, user_states
 from datetime import datetime, timedelta
+import subprocess
+from allcountries import all_countries
 
 # Tokens
 API_TOKEN = "7735279075:AAHvefFBqiRUE4NumS0JlwTAiSMzfrgTmqA"
@@ -48,7 +50,7 @@ user_states = defaultdict(lambda: {
 start_markup = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="Start Requests", callback_data="start")],
     [InlineKeyboardButton(text="Manage Accounts", callback_data="manage_accounts")],
-    [InlineKeyboardButton(text="Show Account Info", callback_data="show_account_info")]
+    [InlineKeyboardButton(text="All Countries", callback_data="all_countries")]
 ])
 
 stop_markup = InlineKeyboardMarkup(inline_keyboard=[
@@ -244,7 +246,7 @@ async def lounge_command(message: types.Message):
 
 @router.message(Command("filter"))
 async def filter_handler(message: types.Message):
-    if not has_valid_access(message.chat.id):
+    if not has valid_access(message.chat.id):
         await message.reply("You are not authorized to use this bot.")
         return
     await filter_command(message)
@@ -252,7 +254,7 @@ async def filter_handler(message: types.Message):
 @router.message(Command("invoke"))
 async def invoke_command(message: types.Message):
     user_id = message.chat.id
-    if not has_valid_access(user_id):
+    if not has valid_access(user_id):
         await message.reply("You are not authorized to use this bot.")
         return
 
@@ -272,38 +274,10 @@ async def invoke_command(message: types.Message):
 
 @router.message(Command("aio"))
 async def aio_command(message: types.Message):
-    if not has_valid_access(message.chat.id):
+    if not has valid_access(message.chat.id):
         await message.reply("You are not authorized to use this bot.")
         return
     await message.answer("Choose an action:", reply_markup=aio_markup)
-
-@router.message()
-async def handle_new_token(message: types.Message):
-    if message.text and message.text.startswith("/"):
-        return
-    user_id = message.from_user.id
-    
-    # Ignore bot's own messages
-    if message.from_user.is_bot:
-        return
-    
-    if not has_valid_access(user_id):
-        await message.reply("You are not authorized to use this bot.")
-        return
-    
-    if message.text:
-        token = message.text.strip()
-        if len(token) < 10:
-            await message.reply("Invalid token. Please try again.")
-            return
-
-        tokens = get_tokens(user_id)
-        account_name = f"Account {len(tokens) + 1}"
-
-        set_token(user_id, token, account_name)
-        await message.reply("Your access token has been saved as " + account_name + ". Use the menu to manage accounts.")
-    else:
-        await message.reply("Message text is empty. Please provide a valid token.")
 
 @router.callback_query()
 async def callback_handler(callback_query: CallbackQuery):
@@ -379,19 +353,23 @@ async def callback_handler(callback_query: CallbackQuery):
                 await bot.unpin_chat_message(chat_id=user_id, message_id=state["pinned_message_id"])
                 state["pinned_message_id"] = None
 
-    elif callback_query.data == "show_account_info":
-        token = get_current_account(user_id)
-        if not token:
-            await callback_query.message.edit_text("No active account token found. Please set an account before requesting account info.", reply_markup=back_markup)
-            return
-        # Removing the fetch account info functionality
-        await callback_query.message.edit_text("Account information display is disabled.", reply_markup=back_markup)
+    elif callback_query.data == "all_countries":
+        if not state["running"]:
+            state["running"] = True
+            try:
+                status_message = await callback_query.message.edit_text("Starting All Countries requests...", reply_markup=stop_markup)
+                state["status_message_id"] = status_message.message_id
+                asyncio.create_task(all_countries(user_id))
+                await callback_query.answer("All Countries requests started!")
+            except Exception as e:
+                logging.error(f"Error while starting All Countries requests: {e}")
+                await callback_query.message.edit_text("Failed to start All Countries requests. Please try again later.", reply_markup=start_markup)
+                state["running"] = False
+        else:
+            await callback_query.answer("Requests are already running!")
 
     elif callback_query.data == "back_to_menu":
         await callback_query.message.edit_text("Welcome! Use the buttons below to navigate.", reply_markup=start_markup)
-
-    if callback_query.data.startswith("filter_"):
-        await set_filter(callback_query)
 
 async def set_bot_commands():
     commands = [
@@ -402,7 +380,8 @@ async def set_bot_commands():
         BotCommand(command="filter", description="Set filter preferences"),
         BotCommand(command="invoke", description="Invoke expired token cleanup"),
         BotCommand(command="skip", description="Skip everyone in the chatroom"),
-        BotCommand(command="password", description="Enter password for temporary access")
+        BotCommand(command="password", description="Enter password for temporary access"),
+        BotCommand(command="all_countries", description="Run All Countries requests")
     ]
     await bot.set_my_commands(commands)
 
