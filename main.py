@@ -291,6 +291,15 @@ async def all_countries_command(message: types.Message):
         try:
             status_message = await message.reply("Starting All Countries requests...", reply_markup=stop_markup)
             state["status_message_id"] = status_message.message_id
+            
+            async def update_status():
+                while state["running"]:
+                    await asyncio.sleep(3)  # Adjust time as needed
+                    await bot.edit_message_text(chat_id=user_id, message_id=state["status_message_id"],
+                                                text="All Countries requests in progress...",
+                                                reply_markup=stop_markup)
+
+            asyncio.create_task(update_status())
             asyncio.create_task(all_countries(user_id))
             await message.reply("All Countries requests started!")
         except Exception as e:
