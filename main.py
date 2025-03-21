@@ -246,7 +246,7 @@ async def lounge_command(message: types.Message):
 
 @router.message(Command("filter"))
 async def filter_handler(message: types.Message):
-    if not has valid_access(message.chat.id):
+    if not has_valid_access(message.chat.id):
         await message.reply("You are not authorized to use this bot.")
         return
     await filter_command(message)
@@ -254,7 +254,7 @@ async def filter_handler(message: types.Message):
 @router.message(Command("invoke"))
 async def invoke_command(message: types.Message):
     user_id = message.chat.id
-    if not has valid_access(user_id):
+    if not has_valid_access(user_id):
         await message.reply("You are not authorized to use this bot.")
         return
 
@@ -274,10 +274,29 @@ async def invoke_command(message: types.Message):
 
 @router.message(Command("aio"))
 async def aio_command(message: types.Message):
-    if not has valid_access(message.chat.id):
+    if not has_valid_access(message.chat.id):
         await message.reply("You are not authorized to use this bot.")
         return
     await message.answer("Choose an action:", reply_markup=aio_markup)
+
+@router.message(Command("all_countries"))
+async def all_countries_command(message: types.Message):
+    user_id = message.chat.id
+    if not has_valid_access(user_id):
+        await message.reply("You are not authorized to use this bot.")
+        return
+    state = user_states[user_id]
+    if not state["running"]:
+        state["running"] = True
+        try:
+            status_message = await message.reply("Starting All Countries requests...", reply_markup=stop_markup)
+            state["status_message_id"] = status_message.message_id
+            asyncio.create_task(all_countries(user_id))
+            await message.reply("All Countries requests started!")
+        except Exception as e:
+            logging.error(f"Error while starting All Countries requests: {e}")
+            await message.reply("Failed to start All Countries requests. Please try again later.")
+            state["running"] = False
 
 @router.callback_query()
 async def callback_handler(callback_query: CallbackQuery):
