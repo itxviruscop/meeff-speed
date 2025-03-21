@@ -30,6 +30,7 @@ async def update_country_filter(session, token, country_code):
         if response.status != 200:
             logging.error(f"Failed to update country: {country_code} - {response.status}")
             return False
+        logging.info(f"Updated country filter to {country_code}")
         return True
 
 async def fetch_users(session, token):
@@ -42,6 +43,7 @@ async def fetch_users(session, token):
             logging.error(f"Failed to fetch users: {response.status}")
             return []
         data = await response.json()
+        logging.info(f"Fetched users: {len(data.get('users', []))}")
         return data.get("users", [])
 
 async def like_user(session, token, user_id):
@@ -52,6 +54,8 @@ async def like_user(session, token, user_id):
     async with session.get(url, headers=headers) as response:
         if response.status != 200:
             logging.error(f"Failed to like user {user_id}: {response.status}")
+        else:
+            logging.info(f"Liked user {user_id}")
 
 async def process_country(session, token, country_code):
     """Process users for a single country."""
@@ -77,5 +81,6 @@ async def all_countries(user_id):
     
     async with aiohttp.ClientSession() as session:
         for country_code in countries:
+            logging.info(f"Starting process for country {country_code}")
             await process_country(session, token, country_code)
             await asyncio.sleep(1)  # Small delay between countries
