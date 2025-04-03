@@ -84,11 +84,8 @@ async def run_all_countries(user_id, state, bot, get_current_account):
     """
     Runs the All Countries feature.
     
-    Arguments:
-    - user_id: Telegram user ID.
-    - state: The user state dictionary from main.py (contains running state and counters).
-    - bot: The aiogram Bot object.
-    - get_current_account: A function to fetch the active account token.
+    It updates a single progress message with the current progress,
+    showing the current country, liked user IDs, and total count.
     """
     token = get_current_account(user_id)
     if not token:
@@ -102,7 +99,10 @@ async def run_all_countries(user_id, state, bot, get_current_account):
         country_index = 0
         state["total_added_friends"] = 0
         state["country_batch_index"] = 0
-        status_msg = await bot.send_message(chat_id=user_id, text="Starting All Countries feature...")
+        # Send initial progress message
+        progress_message = await bot.send_message(chat_id=user_id, text="Starting All Countries feature...")
+        status_message_id = progress_message.message_id
+
         while state["running"]:
             current_country = countries[country_index]
             await update_country_filter(session, headers, current_country)
@@ -110,20 +110,33 @@ async def run_all_countries(user_id, state, bot, get_current_account):
             request_count = 0
             state["country_batch_index"] += 1
 
+            # Build progress text for current country
+            progress_text = (f"All Countries Feature Progress\n"
+                             f"Current Country: {current_country}\n"
+                             f"Batch: {state['country_batch_index']}\n"
+                             f"Users Fetched: {len(users)}\n"
+                             f"Total Liked: {state['total_added_friends']}\n")
+            await bot.edit_message_text(chat_id=user_id, message_id=status_message_id, text=progress_text)
+
             for user in users:
                 if request_count >= REQUESTS_PER_COUNTRY or not state["running"]:
                     break
                 await like_user(session, headers, user["_id"])
                 state["total_added_friends"] += 1
                 request_count += 1
-                await bot.send_message(
-                    chat_id=user_id, 
-                    text=f"Country: {current_country} | Liked user: {user['_id']}\nTotal Liked: {state['total_added_friends']}"
-                )
+
+                # Update progress after each like
+                progress_text = (f"All Countries Feature Progress\n"
+                                 f"Current Country: {current_country}\n"
+                                 f"Batch: {state['country_batch_index']}\n"
+                                 f"Liked in this Batch: {request_count}\n"
+                                 f"Total Liked: {state['total_added_friends']}\n")
+                await bot.edit_message_text(chat_id=user_id, message_id=status_message_id, text=progress_text)
                 await asyncio.sleep(4)
             country_index = (country_index + 1) % len(countries)
             await asyncio.sleep(1)
-        await bot.send_message(
-            chat_id=user_id, 
+        await bot.edit_message_text(
+            chat_id=user_id,
+            message_id=status_message_id,
             text=f"All Countries feature stopped. Total Liked: {state['total_added_friends']}"
         )
