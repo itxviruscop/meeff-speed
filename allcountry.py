@@ -68,17 +68,27 @@ async def fetch_users(session, headers):
         return []
 
 async def like_user(session, headers, user_id):
-    """Sends a like request to a user."""
+    """
+    Sends a like request to a user.
+    Returns True if the request is processed (even if failed for reasons other than rate limiting),
+    and returns False if the daily like limit is reached (HTTP 429).
+    """
     url = f"https://api.meeff.com/user/undoableAnswer/v5/?userId={user_id}&isOkay=1"
     try:
         async with session.get(url, headers=headers) as response:
             if response.status == 200:
                 data = await response.json()
                 logging.info(f"👍 Liked user: {user_id} response: {data}")
+                return True
+            elif response.status == 429:
+                logging.error(f"❌ Daily like limit reached for user {user_id}, status: {response.status}")
+                return False
             else:
                 logging.error(f"❌ Failed to like user {user_id}, status: {response.status}")
+                return True
     except Exception as e:
         logging.error(f"❌ Exception liking user {user_id}: {e}")
+        return True
 
 async def run_all_countries(user_id, state, bot, get_current_account):
     """
@@ -105,7 +115,6 @@ async def run_all_countries(user_id, state, bot, get_current_account):
         country_index = 0
         state["total_added_friends"] = 0
         state["country_batch_index"] = 0
-        # Use the existing status message provided from main.py
         status_message_id = state["status_message_id"]
 
         while state["running"]:
@@ -133,7 +142,22 @@ async def run_all_countries(user_id, state, bot, get_current_account):
             for user in users:
                 if request_count >= REQUESTS_PER_COUNTRY or not state["running"]:
                     break
-                await like_user(session, headers, user["_id"])
+                liked = await like_user(session, headers, user["_id"])
+                # If daily limit is reached, stop the process
+                if not liked:
+                    state["running"] = False
+                    progress_text = (
+                        f"Daily like limit reached.\n"
+                        f"All Countries feature stopped. Total Liked: {state['total_added_friends']}\n"
+                    )
+                    await bot.edit_message_text(
+                        chat_id=user_id,
+                        message_id=status_message_id,
+                        text=progress_text,
+                        reply_markup=None
+                    )
+                    break
+
                 state["total_added_friends"] += 1
                 request_count += 1
 
@@ -152,11 +176,15 @@ async def run_all_countries(user_id, state, bot, get_current_account):
                     reply_markup=state.get("stop_markup")
                 )
                 await asyncio.sleep(4)
+            # If the process was stopped due to daily limit reached, exit completely
+            if not state["running"]:
+                break
             country_index = (country_index + 1) % len(countries)
             await asyncio.sleep(1)
-        await bot.edit_message_text(
-            chat_id=user_id,
-            message_id=status_message_id,
-            text=f"All Countries feature stopped. Total Liked: {state['total_added_friends']}",
-            reply_markup=None
-        )
+        if state["running"]:
+            await bot.edit_message_text(
+                chat_id=user_id,
+                message_id=status_message_id,
+                text=f"All Countries feature stopped. Total Liked: {state['total_added_friends']}",
+                reply_markup=None
+            )
