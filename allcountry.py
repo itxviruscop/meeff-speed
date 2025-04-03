@@ -100,7 +100,7 @@ async def run_all_countries(user_id, state, bot, get_current_account):
         state["total_added_friends"] = 0
         state["country_batch_index"] = 0
         # Send initial progress message
-        progress_message = await bot.send_message(chat_id=user_id, text="Starting All Countries feature...")
+        progress_message = await bot.send_message(chat_id=user_id, text="Starting All Countries feature...\n")
         status_message_id = progress_message.message_id
 
         while state["running"]:
