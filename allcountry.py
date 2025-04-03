@@ -1,7 +1,6 @@
 import asyncio
 import aiohttp
 import logging
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 # All available country ISO codes
 countries = [
@@ -74,9 +73,8 @@ async def like_user(session, headers, user_id):
     try:
         async with session.get(url, headers=headers) as response:
             if response.status == 200:
-                # We don't need to display user-specific details
-                await response.json()
-                logging.info(f"👍 Liked user: {user_id}")
+                data = await response.json()
+                logging.info(f"👍 Liked user: {user_id} response: {data}")
             else:
                 logging.error(f"❌ Failed to like user {user_id}, status: {response.status}")
     except Exception as e:
@@ -86,9 +84,8 @@ async def run_all_countries(user_id, state, bot, get_current_account):
     """
     Runs the All Countries feature.
     
-    This function uses a single message (sent initially) to display progress.
-    It continuously updates that same message with progress details (current country,
-    batch index, and total liked count) without sending new messages.
+    It updates a single progress message with the current progress,
+    showing the current country, liked user IDs, and total count.
     """
     token = get_current_account(user_id)
     if not token:
@@ -98,22 +95,12 @@ async def run_all_countries(user_id, state, bot, get_current_account):
     headers = dict(BASE_HEADERS)
     headers["meeff-access-token"] = token
 
-    # Prepare the stop button markup
-    stop_markup = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Stop Requests", callback_data="stop")]
-    ])
-
     async with aiohttp.ClientSession() as session:
         country_index = 0
         state["total_added_friends"] = 0
         state["country_batch_index"] = 0
-
-        # Send the initial progress message (only once) with the stop button
-        progress_message = await bot.send_message(
-            chat_id=user_id, 
-            text="Starting All Countries feature...", 
-            reply_markup=stop_markup
-        )
+        # Send initial progress message
+        progress_message = await bot.send_message(chat_id=user_id, text="Starting All Countries feature...")
         status_message_id = progress_message.message_id
 
         while state["running"]:
@@ -123,21 +110,14 @@ async def run_all_countries(user_id, state, bot, get_current_account):
             request_count = 0
             state["country_batch_index"] += 1
 
-            # Update the progress message with summary details
-            progress_text = (
-                "Starting All Countries feature...\n\n"
-                f"Current Country: {current_country}\n"
-                f"Batch: {state['country_batch_index']}\n"
-                f"Total Liked: {state['total_added_friends']}"
-            )
-            await bot.edit_message_text(
-                chat_id=user_id, 
-                message_id=status_message_id, 
-                text=progress_text,
-                reply_markup=stop_markup
-            )
+            # Build progress text for current country
+            progress_text = (f"All Countries Feature Progress\n"
+                             f"Current Country: {current_country}\n"
+                             f"Batch: {state['country_batch_index']}\n"
+                             f"Users Fetched: {len(users)}\n"
+                             f"Total Liked: {state['total_added_friends']}\n")
+            await bot.edit_message_text(chat_id=user_id, message_id=status_message_id, text=progress_text)
 
-            # Process users found in this batch
             for user in users:
                 if request_count >= REQUESTS_PER_COUNTRY or not state["running"]:
                     break
@@ -146,24 +126,15 @@ async def run_all_countries(user_id, state, bot, get_current_account):
                 request_count += 1
 
                 # Update progress after each like
-                progress_text = (
-                    "Starting All Countries feature...\n\n"
-                    f"Current Country: {current_country}\n"
-                    f"Batch: {state['country_batch_index']}\n"
-                    f"Liked in this Batch: {request_count}\n"
-                    f"Total Liked: {state['total_added_friends']}"
-                )
-                await bot.edit_message_text(
-                    chat_id=user_id, 
-                    message_id=status_message_id, 
-                    text=progress_text,
-                    reply_markup=stop_markup
-                )
+                progress_text = (f"All Countries Feature Progress\n"
+                                 f"Current Country: {current_country}\n"
+                                 f"Batch: {state['country_batch_index']}\n"
+                                 f"Liked in this Batch: {request_count}\n"
+                                 f"Total Liked: {state['total_added_friends']}\n")
+                await bot.edit_message_text(chat_id=user_id, message_id=status_message_id, text=progress_text)
                 await asyncio.sleep(4)
-            
             country_index = (country_index + 1) % len(countries)
             await asyncio.sleep(1)
-
         await bot.edit_message_text(
             chat_id=user_id,
             message_id=status_message_id,
