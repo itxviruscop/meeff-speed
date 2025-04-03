@@ -401,17 +401,19 @@ async def callback_handler(callback_query: CallbackQuery):
             await callback_query.answer("Another process is already running!")
         else:
             state["running"] = True
-            try:
+            try {
                 status_message = await callback_query.message.edit_text("Starting All Countries feature...", reply_markup=stop_markup)
                 state["status_message_id"] = status_message.message_id
                 state["pinned_message_id"] = status_message.message_id
                 await bot.pin_chat_message(chat_id=user_id, message_id=status_message.message_id)
                 asyncio.create_task(run_all_countries(user_id, state, bot, get_current_account))
                 await callback_query.answer("All Countries feature started!")
-            except Exception as e:
+            } catch (Exception e) {
                 logging.error(f"Error while starting All Countries feature: {e}")
                 await callback_query.message.edit_text("Failed to start All Countries feature.", reply_markup=start_markup)
                 state["running"] = False
+            }
+        }
 
     elif callback_query.data == "back_to_menu":
         await callback_query.message.edit_text("Welcome! Use the buttons below to navigate.", reply_markup=start_markup)
