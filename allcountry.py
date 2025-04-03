@@ -85,7 +85,7 @@ async def run_all_countries(user_id, state, bot, get_current_account):
     """
     Runs the All Countries feature.
     
-    It updates the initial "Starting All Countries feature..." message with the current progress.
+    It updates the initially sent message ("Starting All Countries feature...") with the current progress.
     Only a summary of progress is shown: current country, batch, and total liked count.
     """
     token = get_current_account(user_id)
@@ -96,7 +96,7 @@ async def run_all_countries(user_id, state, bot, get_current_account):
     headers = dict(BASE_HEADERS)
     headers["meeff-access-token"] = token
 
-    # Create the markup for the stop button
+    # Create the stop button markup
     stop_markup = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Stop Requests", callback_data="stop")]
     ])
@@ -106,7 +106,7 @@ async def run_all_countries(user_id, state, bot, get_current_account):
         state["total_added_friends"] = 0
         state["country_batch_index"] = 0
 
-        # Send initial progress message with the stop button
+        # Send initial progress message once with the stop button attached
         progress_message = await bot.send_message(
             chat_id=user_id, 
             text="Starting All Countries feature...", 
@@ -121,7 +121,7 @@ async def run_all_countries(user_id, state, bot, get_current_account):
             request_count = 0
             state["country_batch_index"] += 1
 
-            # Update progress summary (only showing basic details)
+            # Update progress summary without creating a new message.
             progress_text = (
                 f"Starting All Countries feature...\n\n"
                 f"Current Country: {current_country}\n"
