@@ -336,11 +336,30 @@ async def handle_new_token(message: types.Message):
             await message.reply("Invalid token. Please try again.")
             return
 
+        # Verify the token by hitting the history count endpoint
+        url = "https://api.meeff.com/facetalk/vibemeet/history/count/v1"
+        params = {'locale': "en"}
+        headers = {
+            'User-Agent': "okhttp/5.0.0-alpha.14",
+            'Accept-Encoding': "gzip",
+            'meeff-access-token': token
+        }
+        async with aiohttp.ClientSession() as session:
+            try:
+                async with session.get(url, params=params, headers=headers) as resp:
+                    result = await resp.json(content_type=None)
+                    if "errorCode" in result and result["errorCode"] == "AuthRequired":
+                        await message.reply("The token you provided is invalid or disabled. Please try a different token.")
+                        return
+            except Exception as e:
+                logging.error(f"Error verifying token: {e}")
+                await message.reply("Error verifying the token. Please try again.")
+                return
+
         tokens = get_tokens(user_id)
         account_name = f"Account {len(tokens) + 1}"
-
         set_token(user_id, token, account_name)
-        await message.reply("Your access token has been saved as " + account_name + ". Use the menu to manage accounts.")
+        await message.reply("Your access token has been verified and saved as " + account_name + ". Use the menu to manage accounts.")
     else:
         await message.reply("Message text is empty. Please provide a valid token.")
 
