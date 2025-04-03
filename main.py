@@ -62,7 +62,7 @@ back_markup = InlineKeyboardMarkup(inline_keyboard=[
 
 def is_admin(user_id):
     return user_id in ADMIN_USER_IDS
-    
+
 def has_valid_access(user_id):
     if is_admin(user_id):
         return True
@@ -198,7 +198,8 @@ async def start_command(message: types.Message):
         await message.reply("You are not authorized to use this bot.")
         return
     state = user_states[user_id]
-    state["status_message_id"] = (await message.answer("Welcome! Use the button below to start requests.", reply_markup=start_markup)).message_id
+    status = await message.answer("Welcome! Use the button below to start requests.", reply_markup=start_markup)
+    state["status_message_id"] = status.message_id
     state["pinned_message_id"] = None
 
 @router.message(Command("chatroom"))
@@ -275,8 +276,6 @@ async def invoke_command(message: types.Message):
     tokens = get_tokens(user_id)
     expired_tokens = []
     for token in tokens:
-        # account_info = await fetch_account_info(token["token"])
-        # if account_info is None:
         expired_tokens.append(token)
 
     if expired_tokens:
@@ -402,9 +401,13 @@ async def callback_handler(callback_query: CallbackQuery):
         else:
             state["running"] = True
             try:
-                status_message = await callback_query.message.edit_text("Starting All Countries feature...", reply_markup=stop_markup)
+                status_message = await callback_query.message.edit_text(
+                    "Starting All Countries feature...",
+                    reply_markup=stop_markup
+                )
                 state["status_message_id"] = status_message.message_id
                 state["pinned_message_id"] = status_message.message_id
+                state["stop_markup"] = stop_markup  # Save the stop button markup for later updates
                 await bot.pin_chat_message(chat_id=user_id, message_id=status_message.message_id)
                 asyncio.create_task(run_all_countries(user_id, state, bot, get_current_account))
                 await callback_query.answer("All Countries feature started!")
