@@ -274,16 +274,40 @@ async def invoke_command(message: types.Message):
         return
 
     tokens = get_tokens(user_id)
-    expired_tokens = []
-    for token in tokens:
-        expired_tokens.append(token)
+    if not tokens:
+        await message.reply("No tokens found.")
+        return
 
-    if expired_tokens:
-        for token in expired_tokens:
-            delete_token(user_id, token["token"])
-            await message.reply(f"Deleted expired token for account: {token['name']}")
+    disabled_accounts = []
+    working_accounts = []
+    url = "https://api.meeff.com/facetalk/vibemeet/history/count/v1"
+    params = {'locale': "en"}
+
+    async with aiohttp.ClientSession() as session:
+        for token_obj in tokens:
+            token = token_obj["token"]
+            headers = {
+                'User-Agent': "okhttp/5.0.0-alpha.14",
+                'Accept-Encoding': "gzip",
+                'meeff-access-token': token
+            }
+            try:
+                async with session.get(url, params=params, headers=headers) as resp:
+                    result = await resp.json(content_type=None)
+                    if "errorCode" in result and result["errorCode"] == "AuthRequired":
+                        disabled_accounts.append(token_obj)
+                    else:
+                        working_accounts.append(token_obj)
+            except Exception as e:
+                logging.error(f"Error checking token {token_obj.get('name')}: {e}")
+                disabled_accounts.append(token_obj)
+
+    if disabled_accounts:
+        for token_obj in disabled_accounts:
+            delete_token(user_id, token_obj["token"])
+            await message.reply(f"Deleted disabled token for account: {token_obj['name']}")
     else:
-        await message.reply("No expired tokens found.")
+        await message.reply("All accounts are working.")
 
 @router.message(Command("aio"))
 async def aio_command(message: types.Message):
@@ -297,15 +321,15 @@ async def handle_new_token(message: types.Message):
     if message.text and message.text.startswith("/"):
         return
     user_id = message.from_user.id
-    
+
     # Ignore bot's own messages
     if message.from_user.is_bot:
         return
-    
+
     if not has_valid_access(user_id):
         await message.reply("You are not authorized to use this bot.")
         return
-    
+
     if message.text:
         token = message.text.strip()
         if len(token) < 10:
@@ -429,7 +453,7 @@ async def set_bot_commands():
         BotCommand(command="chatroom", description="Send a message to everyone"),
         BotCommand(command="aio", description="Show aio commands"),
         BotCommand(command="filter", description="Set filter preferences"),
-        BotCommand(command="invoke", description="Invoke expired token cleanup"),
+        BotCommand(command="invoke", description="Verify and remove disabled accounts"),
         BotCommand(command="skip", description="Skip everyone in the chatroom"),
         BotCommand(command="password", description="Enter password for temporary access")
     ]
