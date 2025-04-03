@@ -74,6 +74,7 @@ async def like_user(session, headers, user_id):
     try:
         async with session.get(url, headers=headers) as response:
             if response.status == 200:
+                # We don't need to display user-specific details
                 await response.json()
                 logging.info(f"👍 Liked user: {user_id}")
             else:
@@ -85,8 +86,9 @@ async def run_all_countries(user_id, state, bot, get_current_account):
     """
     Runs the All Countries feature.
     
-    It updates the initially sent message ("Starting All Countries feature...") with the current progress.
-    Only a summary of progress is shown: current country, batch, and total liked count.
+    This function uses a single message (sent initially) to display progress.
+    It continuously updates that same message with progress details (current country,
+    batch index, and total liked count) without sending new messages.
     """
     token = get_current_account(user_id)
     if not token:
@@ -96,7 +98,7 @@ async def run_all_countries(user_id, state, bot, get_current_account):
     headers = dict(BASE_HEADERS)
     headers["meeff-access-token"] = token
 
-    # Create the stop button markup
+    # Prepare the stop button markup
     stop_markup = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Stop Requests", callback_data="stop")]
     ])
@@ -106,7 +108,7 @@ async def run_all_countries(user_id, state, bot, get_current_account):
         state["total_added_friends"] = 0
         state["country_batch_index"] = 0
 
-        # Send initial progress message once with the stop button attached
+        # Send the initial progress message (only once) with the stop button
         progress_message = await bot.send_message(
             chat_id=user_id, 
             text="Starting All Countries feature...", 
@@ -121,9 +123,9 @@ async def run_all_countries(user_id, state, bot, get_current_account):
             request_count = 0
             state["country_batch_index"] += 1
 
-            # Update progress summary without creating a new message.
+            # Update the progress message with summary details
             progress_text = (
-                f"Starting All Countries feature...\n\n"
+                "Starting All Countries feature...\n\n"
                 f"Current Country: {current_country}\n"
                 f"Batch: {state['country_batch_index']}\n"
                 f"Total Liked: {state['total_added_friends']}"
@@ -135,6 +137,7 @@ async def run_all_countries(user_id, state, bot, get_current_account):
                 reply_markup=stop_markup
             )
 
+            # Process users found in this batch
             for user in users:
                 if request_count >= REQUESTS_PER_COUNTRY or not state["running"]:
                     break
@@ -142,8 +145,9 @@ async def run_all_countries(user_id, state, bot, get_current_account):
                 state["total_added_friends"] += 1
                 request_count += 1
 
+                # Update progress after each like
                 progress_text = (
-                    f"Starting All Countries feature...\n\n"
+                    "Starting All Countries feature...\n\n"
                     f"Current Country: {current_country}\n"
                     f"Batch: {state['country_batch_index']}\n"
                     f"Liked in this Batch: {request_count}\n"
